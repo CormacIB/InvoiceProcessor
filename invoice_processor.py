@@ -47,7 +47,8 @@ DEFAULT_CONFIG = {
                 "amy & brian", "coconut juice", "sticker", "card",
                 "painting", "hot cocoa", "maple syrup", "bulk gallon",
                 "candy", "colored bites", "cookie", "cookies",
-                "peanut butter", "triple chocolate chunk", "donut cake"
+                "peanut butter", "triple chocolate chunk", "donut cake",
+                "12 oz", "12oz"
             ]
         },
         {
@@ -62,7 +63,8 @@ DEFAULT_CONFIG = {
                 "cholula", "noodle cup", "sandwich", "apple cid", "big b",
                 "spiced apple", "ginger grapefruit", "pineapple peach",
                 "vanilla bean gelato", "energy organic", "drink energy",
-                "cream soda", "sparkling water", "galette"
+                "cream soda", "sparkling water", "galette",
+                "5 lb", "5lb"
             ]
         },
         {
@@ -162,14 +164,14 @@ def extract_sysco_categories(text: str) -> dict:
 # ── Generic: extract (description, amount) line items ────────────────────────
 _SKIP_WORDS = {
     "total", "subtotal", "tax", "balance", "payment", "due",
-    "amount", "price", "extended", "invoice", "surcharge",
+    "amount", "price", "extended", "invoice",
     "misc", "page", "terms", "group total", "order summary",
     "remit", "cases", "split", "cube", "gross",
     "sysco", "confidential", "paca", "driver", "sign",
     "important", "authorized", "retains", "receivables", "proceeds",
     "dispute", "representative", "capacity", "claimants",
     "open:", "close:", "5:00 am", "9:00 pm",   # Sysco footer time strings
-    "fuel surcharge", "misc charges", "misc tax",
+    "misc charges", "misc tax",
 }
 
 def extract_line_items(text: str) -> list:
@@ -180,7 +182,7 @@ def extract_line_items(text: str) -> list:
     items = []
     # Match: any text ... $XX.XX  OR  text ... XX.XX  at end of line
     line_re = re.compile(
-        r'^(.+?)\s+\$?([\d,]{1,7}\.\d{2})\s*$',
+        r'^(.+?)\s+\$?([\d,]{0,7}\.\d{2})\s*[A-Za-z*]?\s*$',
         re.MULTILINE
     )
     for m in line_re.finditer(text):
@@ -193,12 +195,20 @@ def extract_line_items(text: str) -> list:
         # Skip lines that are clearly totals/headers/footers
         desc_low = desc.lower()
         if any(w in desc_low for w in _SKIP_WORDS):
+            if "surcharge" not in desc_low and "retail delivery fee" not in desc_low:
+                continue
+        # Skip Sysco lines marked OUT (not delivered, no extended price charged)
+        if re.match(r'^(?:[a-z]\s+)?out\s', desc_low):
             continue
         # Also skip Sysco footer lines like "OPEN: 5:00 AM  CLOSE: 9:00 PM"
         if re.search(r'\d+:\d{2}\s*(am|pm)', desc_low):
             continue
         # Skip very short descriptions (likely column headers)
         if len(desc) < 4:
+            continue
+        # Skip descriptions with no letters — catches bare item codes (e.g. "7267150")
+        # and stray symbol lines (e.g. "****") that aren't real line items
+        if not re.search(r'[a-zA-Z]', desc):
             continue
 
         items.append((desc, amount))
@@ -285,7 +295,8 @@ def get_page_categories(text: str, config: dict, vendor: str) -> tuple:
                 return cats, []   # regex path — no per-line positions
         t_up = text.upper()
         if "ORDER SUMMARY" in t_up and not re.search(r'\b(DAIRY|FROZEN|CANNED|PAPER|CHEMICAL)\b', t_up):
-            return {}, []
+            if "FUEL SURCHARGE" not in t_up:
+                return {}, []
 
     # All other vendors: keyword match on line items
     items = extract_line_items(text)
@@ -328,7 +339,7 @@ def find_amount_positions(plumber_page, matched_items: list, page_h: float) -> l
     from collections import defaultdict
     word_map: dict = defaultdict(list)
     for w in words:
-        cleaned = w["text"].lstrip("$").replace(",", "")
+        cleaned = w["text"].lstrip("$").replace(",", "").rstrip("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz*")
         try:
             val = round(float(cleaned), 2)
             word_map[val].append(w)
