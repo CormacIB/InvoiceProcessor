@@ -24,7 +24,12 @@ import tkinter as tk
 from tkinter import filedialog, scrolledtext, messagebox
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-BASE_DIR = Path(__file__).parent
+# When frozen by PyInstaller, use the exe's location so that
+# inbox/processed/master folders are created next to the exe.
+if getattr(sys, "frozen", False):
+    BASE_DIR = Path(sys.executable).parent
+else:
+    BASE_DIR = Path(__file__).parent
 CONFIG_FILE = BASE_DIR / "config" / "categories.json"
 INBOX_DIR   = BASE_DIR / "inbox"
 PROCESSED_DIR = BASE_DIR / "processed"

@@ -15,7 +15,15 @@ pyinstaller ^
   --onefile ^
   --windowed ^
   --name "CoffeeLabInvoiceProcessor" ^
-  --add-data "config;config" ^
+  --hidden-import=pdfminer.pdfdocument ^
+  --hidden-import=pdfminer.pdfpage ^
+  --hidden-import=pdfminer.pdfinterp ^
+  --hidden-import=pdfminer.converter ^
+  --hidden-import=pdfminer.layout ^
+  --hidden-import=pdfminer.high_level ^
+  --hidden-import=pdfminer.utils ^
+  --hidden-import=pdfminer.image ^
+  --hidden-import=charset_normalizer ^
   invoice_processor.py
 
 echo.
