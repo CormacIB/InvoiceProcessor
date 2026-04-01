@@ -349,8 +349,8 @@ def find_amount_positions(plumber_page, matched_items: list, page_h: float) -> l
     # For each amount value, keep only the rightmost column, sorted top-to-bottom
     rightmost_map: dict = {}
     for val, wlist in word_map.items():
-        max_x0 = max(w["x0"] for w in wlist)
-        col = [w for w in wlist if abs(w["x0"] - max_x0) < 5]
+        max_x1 = max(w["x1"] for w in wlist)
+        col = [w for w in wlist if abs(w["x1"] - max_x1) < 10]
         col.sort(key=lambda w: w["top"])
         rightmost_map[val] = col
 
@@ -561,6 +561,7 @@ class App:
         btn(btn_row, "Process Inbox",        self.process_inbox,   "#8C4CAF").pack(side=tk.LEFT, padx=4)
         btn(btn_row, "Edit Keywords",        self.open_config,     "#8C4CAF").pack(side=tk.LEFT, padx=4)
         btn(btn_row, "Clear Master PDF",     self.clear_master,    "#8C4CAF").pack(side=tk.LEFT, padx=4)
+        btn(btn_row, "DEBUG: Dump Text",     self.debug_dump_text, "#AA3333").pack(side=tk.LEFT, padx=4)
 
         # Status bar
         self.status_var = tk.StringVar(value="Ready.")
@@ -652,6 +653,27 @@ class App:
             MASTER_PDF.unlink()
             self.log("Master PDF deleted.")
             self.status("Master PDF cleared.")
+
+    def debug_dump_text(self):
+        paths = filedialog.askopenfilenames(
+            title="Select PDF to dump text",
+            filetypes=[("PDF Files", "*.pdf"), ("All Files", "*.*")]
+        )
+        if not paths:
+            return
+        for path in paths:
+            self.log(f"\n{'═'*60}")
+            self.log(f"DEBUG TEXT DUMP: {Path(path).name}")
+            self.log(f"{'═'*60}")
+            try:
+                with pdfplumber.open(path) as pdf:
+                    for i, page in enumerate(pdf.pages):
+                        text = page.extract_text() or ""
+                        self.log(f"\n── Page {i+1} ──────────────────────────")
+                        for lineno, line in enumerate(text.splitlines(), 1):
+                            self.log(f"{lineno:3}: {line}")
+            except Exception as e:
+                self.log(f"ERROR: {e}")
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
