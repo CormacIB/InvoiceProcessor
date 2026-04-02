@@ -358,7 +358,7 @@ def find_amount_positions(plumber_page, matched_items: list, page_h: float) -> l
     used: dict = defaultdict(int)
     highlights = []
 
-    for desc, amount, label in matched_items:
+    for _, amount, label in matched_items:
         key = round(amount, 2)
         col = rightmost_map.get(key, [])
         idx = used[key]
