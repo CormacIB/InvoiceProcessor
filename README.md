@@ -2,6 +2,8 @@
 
 A desktop tool for processing PDF invoices — it scans each invoice, assigns cost category tags based on keyword rules, overlays colored labels directly onto the PDF pages, and appends the tagged pages to a running master PDF.
 
+IMPORTANT NOTE: These categories have been made specifically for a coffee shop- if you are using this for a different resteraunt, follow the template but you will need to essentially input your own inventory, or have an LLM do it for you if you are comfortable with that.
+
 ---
 
 ## What it does
