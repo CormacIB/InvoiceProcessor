@@ -4,6 +4,10 @@ A desktop tool for processing PDF invoices — it scans each invoice, assigns co
 
 IMPORTANT NOTE: These categories have been made specifically for a coffee shop- if you are using this for a different resteraunt, follow the template but you will need to essentially input your own inventory, or have an LLM do it for you if you are comfortable with that.
 
+Requires Python to work so pls install on your device if you want to use this. Still working out smooth installation so requires running python -m pip install pypdf pdfplumber reportlab pyinstaller
+
+This is a known bug in the installer- in theory pyinstaller should be able to handle this?
+
 ---
 
 ## What it does
