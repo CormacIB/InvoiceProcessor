@@ -15,10 +15,11 @@ This is a known bug in the installer- in theory pyinstaller should be able to ha
 1. **Reads PDFs** from the `inbox/` folder (or via file picker)
 2. **Detects the vendor** (Sysco, InnnerMountain, Italco, Crested Bucha, Sisu, Vermont Sticky, or generic)
 3. **Categorises line items** by matching descriptions against keyword lists in `config/categories.json`
-4. **Overlays colored tags** onto each page showing the category code, name, and total amount
-5. **Highlights individual dollar amounts** on the page in the matching category color
-6. **Saves tagged PDFs** to `processed/` with a timestamp in the filename
-7. **Appends each tagged invoice** to `master/master_invoices.pdf` for a consolidated record
+4. **Groups multi-page invoices** — consecutive pages belonging to the same invoice are treated as one, with a single combined total tag on the first page of each invoice
+5. **Overlays colored tags** onto each page showing the category code, name, and total amount
+6. **Highlights individual dollar amounts** on the page in the matching category color
+7. **Saves tagged PDFs** to `processed/` with a timestamp in the filename
+8. **Appends each tagged invoice** to `master/master_invoices.pdf` for a consolidated record
 
 ---
 
@@ -80,7 +81,7 @@ Then distribute or run `dist\CoffeeLabInvoiceProcessor.exe` directly. All folder
 
 | Vendor           | Detection keyword   | Notes                                          |
 |------------------|---------------------|------------------------------------------------|
-| Sysco            | `SYSCO`             | Uses pre-printed category codes where present  |
+| Sysco            | `SYSCO`             | Uses pre-printed category codes; multi-page invoices automatically grouped (delivery copy pages merged with their summary page) |
 | InnnerMountain   | `INNERMOUNTAIN`     | Keyword line-item matching                     |
 | Italco           | `ITALCO`            | Keyword line-item matching                     |
 | Crested Bucha    | `CRESTED BUCHA`     | Keyword line-item matching                     |

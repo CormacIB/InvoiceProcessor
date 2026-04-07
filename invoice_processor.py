@@ -478,6 +478,43 @@ def append_to_master(processed_bytes: bytes, master_path: Path):
         writer.write(f)
 
 
+# ── Invoice boundary detection ────────────────────────────────────────────────
+def find_invoice_groups(pages_text: list, vendor: str) -> list:
+    """
+    Groups consecutive pages that belong to the same invoice.
+    Returns [(start_idx, end_idx), ...] where end_idx is exclusive.
+
+    Sysco: a new invoice begins on any non-delivery-copy page that contains
+    pre-printed category codes.  Delivery-copy pages trail the preceding
+    summary page and belong to the same invoice group.
+
+    Other vendors: "Page 1 of N" signals a new invoice; otherwise each page
+    is its own group (preserving the original per-page behaviour).
+    """
+    if len(pages_text) <= 1:
+        return [(0, len(pages_text))]
+
+    groups = []
+    group_start = 0
+
+    for i, text in enumerate(pages_text):
+        if i == 0:
+            continue
+
+        if vendor == "sysco":
+            is_delivery = "DELIVERY COPY" in text.upper()
+            if not is_delivery and extract_sysco_categories(text):
+                groups.append((group_start, i))
+                group_start = i
+        else:
+            if re.search(r'page\s+1\s+of\s+\d+', text, re.IGNORECASE):
+                groups.append((group_start, i))
+                group_start = i
+
+    groups.append((group_start, len(pages_text)))
+    return groups
+
+
 # ── Main pipeline ─────────────────────────────────────────────────────────────
 def process_invoice(input_path: Path, config: dict, log=print) -> bool:
     log(f"  File : {input_path.name}")
@@ -517,8 +554,23 @@ def process_invoice(input_path: Path, config: dict, log=print) -> bool:
         if not any(cats_per_page):
             log("  ⚠  No categories found — check keywords in config/categories.json")
 
+        # Detect invoice boundaries within the PDF and aggregate each group's
+        # categories onto the first page of that group only.
+        invoice_groups = find_invoice_groups(pages_text, vendor)
+        cats_for_overlay = [{} for _ in cats_per_page]
+        for start, end in invoice_groups:
+            group_cats: dict = {}
+            for cats in cats_per_page[start:end]:
+                for label, amount in cats.items():
+                    group_cats[label] = round(group_cats.get(label, 0.0) + amount, 2)
+            cats_for_overlay[start] = group_cats
+            if group_cats and end - start > 1:
+                page_range = f"{start+1}–{end}"
+                summary = "  |  ".join(f"{k}  ${v:,.2f}" for k, v in group_cats.items())
+                log(f"  Invoice (p{page_range}): {summary}")
+
         processed_bytes = overlay_tags_on_pdf(
-            input_path, cats_per_page, highlights_per_page, config
+            input_path, cats_for_overlay, highlights_per_page, config
         )
 
         timestamp   = datetime.now().strftime("%Y%m%d_%H%M%S")
