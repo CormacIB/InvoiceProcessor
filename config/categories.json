@@ -3,7 +3,11 @@
     {
       "code": "52000",
       "name": "Merch",
-      "color": [0, 191, 255],
+      "color": [
+        0,
+        191,
+        255
+      ],
       "keywords": [
         "yerba mate",
         "red bull",
@@ -30,31 +34,35 @@
         "triple chocolate chunk",
         "12 oz",
         "12oz",
-	"PERRIER WATER SPRKLG MINERAL GLASS",
-	"OPENWTR WATER SPRING STILL ALUM",
-	"SOUP CHICKEN VEGAN NOODLE LOWER SODIUM",
-	"Organic Dried Tropical Blend Peeled Snacks",
-	"NOODLE RAMEN BRAISED BEEF PACK OF 6",
-	"MYLKLAB CEREAL OATMEAL CUP APPLE",
-	"MYLKLAB CEREAL OATMEAL CUP BLUEBR",
-	"GATRADE DRINK LMN/LM LOOSE",
-	"GATRADE DRINK FRUIT PUNCH LOOSE PK",
-	"MYLKLAB CEREAL COATMEAL CUP MPL ST",
-	"MYLKLAB CEREAL OATMEAL CUP BANANA",
-	"GATRADE DRINK ORANGE LOOSE",
-	"MAI PER WATER SPRKLG",
-	"pineapple peach",
+        "PERRIER WATER SPRKLG MINERAL GLASS",
+        "OPENWTR WATER SPRING STILL ALUM",
+        "SOUP CHICKEN VEGAN NOODLE LOWER SODIUM",
+        "Organic Dried Tropical Blend Peeled Snacks",
+        "NOODLE RAMEN BRAISED BEEF PACK OF 6",
+        "MYLKLAB CEREAL OATMEAL CUP APPLE",
+        "MYLKLAB CEREAL OATMEAL CUP BLUEBR",
+        "GATRADE DRINK LMN/LM LOOSE",
+        "GATRADE DRINK FRUIT PUNCH LOOSE PK",
+        "MYLKLAB CEREAL COATMEAL CUP MPL ST",
+        "MYLKLAB CEREAL OATMEAL CUP BANANA",
+        "GATRADE DRINK ORANGE LOOSE",
+        "MAI PER WATER SPRKLG",
+        "pineapple peach",
         "yogurt",
-	"HORZON MILK CHOC REDUC MILK ORGANIC",
-	"SPRITE SODA SPRITE MEX GLASS",
-  "COCACOL SODA MEX COKE GLS",
-	"UNCRUST SANDWICH PEANUT"
+        "HORZON MILK CHOC REDUC MILK ORGANIC",
+        "SPRITE SODA SPRITE MEX GLASS",
+        "COCACOL SODA MEX COKE GLS",
+        "UNCRUST SANDWICH PEANUT"
       ]
     },
     {
       "code": "50900",
       "name": "F&B",
-      "color": [255, 200, 0],
+      "color": [
+        255,
+        200,
+        0
+      ],
       "keywords": [
         "donut cake",
         "vegan vuoto",
@@ -95,19 +103,23 @@
         "galette",
         "5 lb",
         "5lb",
-	"CHGS FOR FUEL SURCHARGE",
-	"RETAIL DELIVERY FEE",
-	"SYS REL TOPPING WHPD ARSL",
-	"SMPLYPB MILK ALMOND BARISTA",
-	"SMPLYPB MILK OAT BARISTA",
-	"WHLFCLS MILK WHL GALLON",
-	"PACIFIC MILK SOY BARISTA ORIGINAL"
+        "CHGS FOR FUEL SURCHARGE",
+        "RETAIL DELIVERY FEE",
+        "SYS REL TOPPING WHPD ARSL",
+        "SMPLYPB MILK ALMOND BARISTA",
+        "SMPLYPB MILK OAT BARISTA",
+        "WHLFCLS MILK WHL GALLON",
+        "PACIFIC MILK SOY BARISTA ORIGINAL"
       ]
     },
     {
       "code": "53100",
       "name": "Kitchen",
-      "color": [153, 51, 255],
+      "color": [
+        153,
+        51,
+        255
+      ],
       "keywords": [
         "cup/lid",
         "cup lid",
@@ -132,7 +144,11 @@
     {
       "code": "61600",
       "name": "cafe",
-      "color": [100, 200, 100],
+      "color": [
+        100,
+        200,
+        100
+      ],
       "keywords": [
         "rinse aid",
         "keyston",
@@ -144,13 +160,13 @@
         "dish soap",
         "degreaser",
         "low temp liq disp",
-	"KEYSTON SANITIZER MACHINE LIQ DISP",
-	"KEYSTON RINSE AID LOW TEMP LIQ DISP"
+        "KEYSTON SANITIZER MACHINE LIQ DISP",
+        "KEYSTON RINSE AID LOW TEMP LIQ DISP"
       ]
     }
   ],
   "notes": {
-    "editing": "Add keywords (lowercase) to any category. First matching category wins per line item. Sysco invoices use their printed codes directly — keywords only apply to other vendors.",
+    "editing": "Add keywords (lowercase) to any category. First matching category wins per line item. Sysco invoices use their printed codes directly \u00e2\u20ac\u201d keywords only apply to other vendors.",
     "colors": "RGB values 0-255. cyan=[0,191,255], yellow=[255,200,0], purple=[153,51,255], green=[100,200,100]",
     "adding_category": "Copy a category block, change code/name/color/keywords, save, and re-run."
   }

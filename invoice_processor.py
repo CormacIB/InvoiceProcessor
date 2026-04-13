@@ -10,7 +10,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import traceback
 from datetime import datetime
@@ -589,6 +588,235 @@ def process_invoice(input_path: Path, config: dict, log=print) -> bool:
         return False
 
 
+# ── Category Editor ───────────────────────────────────────────────────────────
+class CategoryEditor:
+    """Tkinter window for managing categories and their keywords."""
+
+    def __init__(self, parent: tk.Tk):
+        self.win = tk.Toplevel(parent)
+        self.win.title("Edit Categories")
+        self.win.geometry("780x520")
+        self.win.resizable(True, True)
+        self.win.grab_set()  # modal
+
+        self.config_data = load_config()
+        self.categories  = self.config_data["categories"]
+        self._selected   = None   # index into self.categories
+
+        self._build()
+        self._refresh_cat_list()
+        if self.categories:
+            self.cat_listbox.selection_set(0)
+            self._on_cat_select()
+
+    # ── Layout ────────────────────────────────────────────────────────────────
+    def _build(self):
+        PURPLE = "#8C4CAF"
+        RED    = "#AA3333"
+
+        def btn(parent, text, cmd, bg=PURPLE, **kw):
+            return tk.Button(parent, text=text, command=cmd,
+                             bg=bg, fg="white", font=("Arial", 9, "bold"),
+                             relief=tk.FLAT, cursor="hand2", **kw)
+
+        # ── Left panel: category list ─────────────────────────────────────
+        left = tk.Frame(self.win, width=200)
+        left.pack(side=tk.LEFT, fill=tk.Y, padx=(10, 4), pady=10)
+        left.pack_propagate(False)
+
+        tk.Label(left, text="Categories", font=("Arial", 10, "bold")).pack(anchor="w")
+
+        self.cat_listbox = tk.Listbox(left, font=("Arial", 10), selectmode=tk.SINGLE,
+                                      activestyle="dotbox", height=18)
+        self.cat_listbox.pack(fill=tk.BOTH, expand=True, pady=(4, 4))
+        self.cat_listbox.bind("<<ListboxSelect>>", lambda _: self._on_cat_select())
+
+        cat_btns = tk.Frame(left)
+        cat_btns.pack(fill=tk.X)
+        btn(cat_btns, "+ Add",    self._add_category).pack(side=tk.LEFT, padx=2)
+        btn(cat_btns, "- Delete", self._delete_category, bg=RED).pack(side=tk.LEFT, padx=2)
+
+        # ── Right panel: details + keywords ──────────────────────────────
+        right = tk.Frame(self.win)
+        right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(4, 10), pady=10)
+
+        # Name / Code / Color row
+        meta = tk.Frame(right)
+        meta.pack(fill=tk.X, pady=(0, 6))
+
+        for col, (label, attr, width) in enumerate([
+            ("Name",  "_entry_name",  14),
+            ("Code",  "_entry_code",   8),
+            ("Color R", "_entry_r",    5),
+            ("Color G", "_entry_g",    5),
+            ("Color B", "_entry_b",    5),
+        ]):
+            tk.Label(meta, text=label, font=("Arial", 9)).grid(row=0, column=col, padx=4, sticky="w")
+            e = tk.Entry(meta, width=width, font=("Arial", 10))
+            e.grid(row=1, column=col, padx=4)
+            setattr(self, attr, e)
+
+        btn(meta, "Apply", self._apply_meta).grid(row=1, column=5, padx=(10, 0))
+
+        # Color preview swatch
+        self._swatch = tk.Label(meta, width=3, relief=tk.SUNKEN)
+        self._swatch.grid(row=1, column=6, padx=6)
+        for entry in (self._entry_r, self._entry_g, self._entry_b):
+            entry.bind("<KeyRelease>", lambda _: self._update_swatch())
+
+        # Keywords
+        tk.Label(right, text="Keywords  (one per line, case-insensitive)",
+                 font=("Arial", 9)).pack(anchor="w")
+
+        kw_frame = tk.Frame(right)
+        kw_frame.pack(fill=tk.BOTH, expand=True)
+
+        scrollbar = tk.Scrollbar(kw_frame, orient=tk.VERTICAL)
+        self.kw_listbox = tk.Listbox(kw_frame, font=("Courier New", 10),
+                                     selectmode=tk.EXTENDED,
+                                     yscrollcommand=scrollbar.set, height=14)
+        scrollbar.config(command=self.kw_listbox.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.kw_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Add keyword row
+        add_row = tk.Frame(right)
+        add_row.pack(fill=tk.X, pady=(6, 0))
+        self._kw_entry = tk.Entry(add_row, font=("Arial", 10))
+        self._kw_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 6))
+        self._kw_entry.bind("<Return>", lambda _: self._add_keyword())
+        btn(add_row, "+ Add Keyword",    self._add_keyword).pack(side=tk.LEFT, padx=2)
+        btn(add_row, "- Remove Selected", self._remove_keywords, bg=RED).pack(side=tk.LEFT, padx=2)
+
+        # Save / Cancel
+        footer = tk.Frame(right)
+        footer.pack(fill=tk.X, pady=(10, 0))
+        btn(footer, "Save Changes", self._save, bg="#2E8B57", width=14).pack(side=tk.RIGHT, padx=4)
+        btn(footer, "Cancel",       self.win.destroy, bg="#666", width=10).pack(side=tk.RIGHT, padx=4)
+
+    # ── Helpers ───────────────────────────────────────────────────────────────
+    def _refresh_cat_list(self):
+        self.cat_listbox.delete(0, tk.END)
+        for cat in self.categories:
+            self.cat_listbox.insert(tk.END, f"{cat['code']}  {cat['name']}")
+
+    def _on_cat_select(self):
+        sel = self.cat_listbox.curselection()
+        if not sel:
+            return
+        self._selected = sel[0]
+        cat = self.categories[self._selected]
+
+        for entry, val in [
+            (self._entry_name, cat["name"]),
+            (self._entry_code, cat["code"]),
+            (self._entry_r,    cat["color"][0]),
+            (self._entry_g,    cat["color"][1]),
+            (self._entry_b,    cat["color"][2]),
+        ]:
+            entry.delete(0, tk.END)
+            entry.insert(0, str(val))
+
+        self._update_swatch()
+        self.kw_listbox.delete(0, tk.END)
+        for kw in cat["keywords"]:
+            self.kw_listbox.insert(tk.END, kw)
+
+    def _update_swatch(self):
+        try:
+            r = int(self._entry_r.get())
+            g = int(self._entry_g.get())
+            b = int(self._entry_b.get())
+            self._swatch.config(bg=f"#{r:02x}{g:02x}{b:02x}")
+        except (ValueError, tk.TclError):
+            pass
+
+    def _apply_meta(self):
+        if self._selected is None:
+            return
+        cat = self.categories[self._selected]
+        try:
+            r, g, b = int(self._entry_r.get()), int(self._entry_g.get()), int(self._entry_b.get())
+            if not all(0 <= v <= 255 for v in (r, g, b)):
+                raise ValueError
+        except ValueError:
+            messagebox.showerror("Invalid Color", "R, G, B must be integers 0–255.", parent=self.win)
+            return
+        cat["name"]  = self._entry_name.get().strip()
+        cat["code"]  = self._entry_code.get().strip()
+        cat["color"] = [r, g, b]
+        self._refresh_cat_list()
+        self.cat_listbox.selection_set(self._selected)
+
+    def _add_keyword(self):
+        if self._selected is None:
+            return
+        kw = self._kw_entry.get().strip().lower()
+        if not kw:
+            return
+        existing = list(self.kw_listbox.get(0, tk.END))
+        if kw in existing:
+            messagebox.showinfo("Duplicate", f'"{kw}" is already in this category.', parent=self.win)
+            return
+        self.kw_listbox.insert(tk.END, kw)
+        self.categories[self._selected]["keywords"] = list(self.kw_listbox.get(0, tk.END))
+        self._kw_entry.delete(0, tk.END)
+
+    def _remove_keywords(self):
+        if self._selected is None:
+            return
+        for i in reversed(self.kw_listbox.curselection()):
+            self.kw_listbox.delete(i)
+        self.categories[self._selected]["keywords"] = list(self.kw_listbox.get(0, tk.END))
+
+    def _add_category(self):
+        new_cat = {"code": "00000", "name": "New Category",
+                   "color": [180, 180, 180], "keywords": []}
+        self.categories.append(new_cat)
+        self._refresh_cat_list()
+        idx = len(self.categories) - 1
+        self.cat_listbox.selection_clear(0, tk.END)
+        self.cat_listbox.selection_set(idx)
+        self.cat_listbox.see(idx)
+        self._on_cat_select()
+
+    def _delete_category(self):
+        if self._selected is None:
+            return
+        cat = self.categories[self._selected]
+        if not messagebox.askyesno(
+            "Delete Category",
+            f'Delete category "{cat["name"]}" ({cat["code"]})?\nThis cannot be undone.',
+            parent=self.win
+        ):
+            return
+        self.categories.pop(self._selected)
+        self._selected = None
+        self._refresh_cat_list()
+        self.kw_listbox.delete(0, tk.END)
+        for entry in (self._entry_name, self._entry_code,
+                      self._entry_r, self._entry_g, self._entry_b):
+            entry.delete(0, tk.END)
+        if self.categories:
+            self.cat_listbox.selection_set(0)
+            self._on_cat_select()
+
+    def _save(self):
+        # Sync any in-progress keyword list back before saving
+        if self._selected is not None:
+            self.categories[self._selected]["keywords"] = list(
+                self.kw_listbox.get(0, tk.END)
+            )
+        self.config_data["categories"] = self.categories
+        try:
+            with open(CONFIG_FILE, "w") as f:
+                json.dump(self.config_data, f, indent=2)
+            messagebox.showinfo("Saved", "categories.json updated successfully.", parent=self.win)
+            self.win.destroy()
+        except Exception as e:
+            messagebox.showerror("Save Error", str(e), parent=self.win)
+
+
 # ── GUI ───────────────────────────────────────────────────────────────────────
 class App:
     def __init__(self, root: tk.Tk):
@@ -693,8 +921,7 @@ class App:
         self.status(result)
 
     def open_config(self):
-        subprocess.Popen(f'notepad "{CONFIG_FILE}"')
-        self.log("Opened categories.json in Notepad — save and re-run to apply changes.")
+        CategoryEditor(self.root)
 
     def clear_master(self):
         if not MASTER_PDF.exists():
