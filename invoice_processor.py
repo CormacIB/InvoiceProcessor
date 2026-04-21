@@ -376,6 +376,13 @@ def find_amount_positions(plumber_page, matched_items: list, page_h: float) -> l
     return highlights
 
 
+# ── GUI helpers ───────────────────────────────────────────────────────────────
+def _darken(hex_color: str, factor: float = 0.75) -> str:
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"#{int(r*factor):02x}{int(g*factor):02x}{int(b*factor):02x}"
+
+
 # ── PDF tag overlay ───────────────────────────────────────────────────────────
 def _build_color_map(config: dict) -> dict:
     cmap = {}
@@ -833,9 +840,13 @@ class App:
         btn_row.pack(fill=tk.X)
 
         def btn(parent, text, cmd, bg):
-            return tk.Button(parent, text=text, command=cmd,
-                             bg=bg, fg="white", font=("Arial", 10, "bold"),
-                             width=18, height=2, relief=tk.FLAT, cursor="hand2")
+            b = tk.Label(parent, text=text, bg=bg, fg="white",
+                         font=("Arial", 10, "bold"), width=18, height=2,
+                         relief=tk.FLAT, cursor="hand2")
+            b.bind("<Button-1>", lambda e: cmd())
+            b.bind("<Enter>",    lambda e: b.config(bg=_darken(bg)))
+            b.bind("<Leave>",    lambda e: b.config(bg=bg))
+            return b
 
         btn(btn_row, "Select File(s)...",    self.select_files,    "#8C4CAF").pack(side=tk.LEFT, padx=4)
         btn(btn_row, "Process Inbox",        self.process_inbox,   "#8C4CAF").pack(side=tk.LEFT, padx=4)
@@ -921,7 +932,13 @@ class App:
         self.status(result)
 
     def open_config(self):
-        CategoryEditor(self.root)
+        if sys.platform == "win32":
+            subprocess.Popen(["notepad", str(CONFIG_FILE)])
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", "-t", str(CONFIG_FILE)])
+        else:
+            subprocess.Popen(["xdg-open", str(CONFIG_FILE)])
+        self.log("Opened categories.json in default text editor — save and re-run to apply changes.")
 
     def clear_master(self):
         if not MASTER_PDF.exists():
