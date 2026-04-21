@@ -19,8 +19,15 @@ import pdfplumber
 from pypdf import PdfReader, PdfWriter
 from reportlab.lib.colors import Color
 from reportlab.pdfgen import canvas as rl_canvas
-import tkinter as tk
-from tkinter import filedialog, scrolledtext, messagebox
+from PySide6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QDialog,
+    QVBoxLayout, QHBoxLayout, QGridLayout,
+    QPushButton, QLabel, QListWidget, QTextEdit,
+    QLineEdit, QGroupBox, QFileDialog, QMessageBox,
+    QAbstractItemView,
+)
+from PySide6.QtGui import QFont, QTextCursor, QIcon, QDesktopServices
+from PySide6.QtCore import Qt, QUrl
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 # When frozen by PyInstaller, use the exe's location so that
@@ -596,124 +603,162 @@ def process_invoice(input_path: Path, config: dict, log=print) -> bool:
 
 
 # ── Category Editor ───────────────────────────────────────────────────────────
-class CategoryEditor:
-    """Tkinter window for managing categories and their keywords."""
+class CategoryEditor(QDialog):
+    """Dialog for managing categories and their keywords."""
 
-    def __init__(self, parent: tk.Tk):
-        self.win = tk.Toplevel(parent)
-        self.win.title("Edit Categories")
-        self.win.geometry("780x520")
-        self.win.resizable(True, True)
-        self.win.grab_set()  # modal
+    PURPLE = "#8C4CAF"
+    RED    = "#AA3333"
+    GREEN  = "#2E8B57"
+    GREY   = "#666666"
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Edit Categories")
+        self.resize(820, 540)
+        self.setModal(True)
 
         self.config_data = load_config()
         self.categories  = self.config_data["categories"]
-        self._selected   = None   # index into self.categories
+        self._selected   = None
 
         self._build()
         self._refresh_cat_list()
         if self.categories:
-            self.cat_listbox.selection_set(0)
-            self._on_cat_select()
+            self.cat_list.setCurrentRow(0)
 
     # ── Layout ────────────────────────────────────────────────────────────────
     def _build(self):
-        PURPLE = "#8C4CAF"
-        RED    = "#AA3333"
+        def sbtn(text, color, width=None):
+            b = QPushButton(text)
+            b.setStyleSheet(
+                f"QPushButton{{background:{color};color:white;font-weight:bold;"
+                f"border:none;padding:5px 10px;border-radius:3px;}}"
+                f"QPushButton:hover{{background:{_darken(color)};}}"
+            )
+            if width:
+                b.setFixedWidth(width)
+            return b
 
-        def btn(parent, text, cmd, bg=PURPLE, **kw):
-            return tk.Button(parent, text=text, command=cmd,
-                             bg=bg, fg="white", font=("Arial", 9, "bold"),
-                             relief=tk.FLAT, cursor="hand2", **kw)
+        root = QHBoxLayout(self)
+        root.setContentsMargins(10, 10, 10, 10)
 
         # ── Left panel: category list ─────────────────────────────────────
-        left = tk.Frame(self.win, width=200)
-        left.pack(side=tk.LEFT, fill=tk.Y, padx=(10, 4), pady=10)
-        left.pack_propagate(False)
+        left = QWidget()
+        left.setFixedWidth(200)
+        ll = QVBoxLayout(left)
+        ll.setContentsMargins(0, 0, 4, 0)
 
-        tk.Label(left, text="Categories", font=("Arial", 10, "bold")).pack(anchor="w")
+        hdr = QLabel("Categories")
+        hdr.setStyleSheet("font-weight:bold; font-size:10pt;")
+        ll.addWidget(hdr)
 
-        self.cat_listbox = tk.Listbox(left, font=("Arial", 10), selectmode=tk.SINGLE,
-                                      activestyle="dotbox", height=18)
-        self.cat_listbox.pack(fill=tk.BOTH, expand=True, pady=(4, 4))
-        self.cat_listbox.bind("<<ListboxSelect>>", lambda _: self._on_cat_select())
+        self.cat_list = QListWidget()
+        self.cat_list.setFont(QFont("Arial", 10))
+        self.cat_list.currentRowChanged.connect(self._on_cat_select)
+        ll.addWidget(self.cat_list)
 
-        cat_btns = tk.Frame(left)
-        cat_btns.pack(fill=tk.X)
-        btn(cat_btns, "+ Add",    self._add_category).pack(side=tk.LEFT, padx=2)
-        btn(cat_btns, "- Delete", self._delete_category, bg=RED).pack(side=tk.LEFT, padx=2)
+        cat_btns = QHBoxLayout()
+        add_btn = sbtn("+ Add",    self.PURPLE)
+        del_btn = sbtn("- Delete", self.RED)
+        add_btn.clicked.connect(self._add_category)
+        del_btn.clicked.connect(self._delete_category)
+        cat_btns.addWidget(add_btn)
+        cat_btns.addWidget(del_btn)
+        ll.addLayout(cat_btns)
+
+        root.addWidget(left)
 
         # ── Right panel: details + keywords ──────────────────────────────
-        right = tk.Frame(self.win)
-        right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(4, 10), pady=10)
+        right = QWidget()
+        rl = QVBoxLayout(right)
+        rl.setContentsMargins(4, 0, 0, 0)
 
         # Name / Code / Color row
-        meta = tk.Frame(right)
-        meta.pack(fill=tk.X, pady=(0, 6))
+        meta = QWidget()
+        ml = QGridLayout(meta)
+        ml.setContentsMargins(0, 0, 0, 6)
 
         for col, (label, attr, width) in enumerate([
-            ("Name",  "_entry_name",  14),
-            ("Code",  "_entry_code",   8),
-            ("Color R", "_entry_r",    5),
-            ("Color G", "_entry_g",    5),
-            ("Color B", "_entry_b",    5),
+            ("Name",    "_entry_name", 140),
+            ("Code",    "_entry_code",  70),
+            ("Color R", "_entry_r",     45),
+            ("Color G", "_entry_g",     45),
+            ("Color B", "_entry_b",     45),
         ]):
-            tk.Label(meta, text=label, font=("Arial", 9)).grid(row=0, column=col, padx=4, sticky="w")
-            e = tk.Entry(meta, width=width, font=("Arial", 10))
-            e.grid(row=1, column=col, padx=4)
+            lbl = QLabel(label)
+            lbl.setStyleSheet("font-size:9pt;")
+            ml.addWidget(lbl, 0, col)
+            e = QLineEdit()
+            e.setFixedWidth(width)
+            e.setFont(QFont("Arial", 10))
+            ml.addWidget(e, 1, col)
             setattr(self, attr, e)
 
-        btn(meta, "Apply", self._apply_meta).grid(row=1, column=5, padx=(10, 0))
+        apply_btn = sbtn("Apply", self.PURPLE)
+        apply_btn.clicked.connect(self._apply_meta)
+        ml.addWidget(apply_btn, 1, 5)
 
-        # Color preview swatch
-        self._swatch = tk.Label(meta, width=3, relief=tk.SUNKEN)
-        self._swatch.grid(row=1, column=6, padx=6)
+        self._swatch = QLabel()
+        self._swatch.setFixedSize(28, 24)
+        self._swatch.setStyleSheet("border:1px solid #888; background:#b4b4b4;")
+        ml.addWidget(self._swatch, 1, 6)
+
         for entry in (self._entry_r, self._entry_g, self._entry_b):
-            entry.bind("<KeyRelease>", lambda _: self._update_swatch())
+            entry.textChanged.connect(self._update_swatch)
 
-        # Keywords
-        tk.Label(right, text="Keywords  (one per line, case-insensitive)",
-                 font=("Arial", 9)).pack(anchor="w")
+        rl.addWidget(meta)
 
-        kw_frame = tk.Frame(right)
-        kw_frame.pack(fill=tk.BOTH, expand=True)
+        kw_lbl = QLabel("Keywords  (one per line, case-insensitive)")
+        kw_lbl.setStyleSheet("font-size:9pt;")
+        rl.addWidget(kw_lbl)
 
-        scrollbar = tk.Scrollbar(kw_frame, orient=tk.VERTICAL)
-        self.kw_listbox = tk.Listbox(kw_frame, font=("Courier New", 10),
-                                     selectmode=tk.EXTENDED,
-                                     yscrollcommand=scrollbar.set, height=14)
-        scrollbar.config(command=self.kw_listbox.yview)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.kw_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.kw_list = QListWidget()
+        self.kw_list.setFont(QFont("Courier New", 10))
+        self.kw_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        rl.addWidget(self.kw_list)
 
-        # Add keyword row
-        add_row = tk.Frame(right)
-        add_row.pack(fill=tk.X, pady=(6, 0))
-        self._kw_entry = tk.Entry(add_row, font=("Arial", 10))
-        self._kw_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 6))
-        self._kw_entry.bind("<Return>", lambda _: self._add_keyword())
-        btn(add_row, "+ Add Keyword",    self._add_keyword).pack(side=tk.LEFT, padx=2)
-        btn(add_row, "- Remove Selected", self._remove_keywords, bg=RED).pack(side=tk.LEFT, padx=2)
+        add_kw_row = QHBoxLayout()
+        self._kw_entry = QLineEdit()
+        self._kw_entry.setFont(QFont("Arial", 10))
+        self._kw_entry.setPlaceholderText("new keyword…")
+        self._kw_entry.returnPressed.connect(self._add_keyword)
+        add_kw_row.addWidget(self._kw_entry)
+        add_kw_btn = sbtn("+ Add Keyword",     self.PURPLE)
+        rem_kw_btn = sbtn("- Remove Selected", self.RED)
+        add_kw_btn.clicked.connect(self._add_keyword)
+        rem_kw_btn.clicked.connect(self._remove_keywords)
+        add_kw_row.addWidget(add_kw_btn)
+        add_kw_row.addWidget(rem_kw_btn)
+        rl.addLayout(add_kw_row)
 
-        # Save / Cancel
-        footer = tk.Frame(right)
-        footer.pack(fill=tk.X, pady=(10, 0))
-        btn(footer, "Save Changes", self._save, bg="#2E8B57", width=14).pack(side=tk.RIGHT, padx=4)
-        btn(footer, "Cancel",       self.win.destroy, bg="#666", width=10).pack(side=tk.RIGHT, padx=4)
+        footer = QHBoxLayout()
+        footer.addStretch()
+        cancel_btn = sbtn("Cancel",       self.GREY,  width=90)
+        save_btn   = sbtn("Save Changes", self.GREEN, width=120)
+        cancel_btn.clicked.connect(self.reject)
+        save_btn.clicked.connect(self._save)
+        footer.addWidget(cancel_btn)
+        footer.addWidget(save_btn)
+        rl.addLayout(footer)
+
+        root.addWidget(right)
 
     # ── Helpers ───────────────────────────────────────────────────────────────
+    def _keywords(self):
+        return [self.kw_list.item(i).text() for i in range(self.kw_list.count())]
+
     def _refresh_cat_list(self):
-        self.cat_listbox.delete(0, tk.END)
+        self.cat_list.clear()
         for cat in self.categories:
-            self.cat_listbox.insert(tk.END, f"{cat['code']}  {cat['name']}")
+            self.cat_list.addItem(f"{cat['code']}  {cat['name']}")
 
-    def _on_cat_select(self):
-        sel = self.cat_listbox.curselection()
-        if not sel:
+    def _on_cat_select(self, row=None):
+        if row is None:
+            row = self.cat_list.currentRow()
+        if row < 0:
             return
-        self._selected = sel[0]
-        cat = self.categories[self._selected]
-
+        self._selected = row
+        cat = self.categories[row]
         for entry, val in [
             (self._entry_name, cat["name"]),
             (self._entry_code, cat["code"]),
@@ -721,60 +766,55 @@ class CategoryEditor:
             (self._entry_g,    cat["color"][1]),
             (self._entry_b,    cat["color"][2]),
         ]:
-            entry.delete(0, tk.END)
-            entry.insert(0, str(val))
-
+            entry.setText(str(val))
         self._update_swatch()
-        self.kw_listbox.delete(0, tk.END)
+        self.kw_list.clear()
         for kw in cat["keywords"]:
-            self.kw_listbox.insert(tk.END, kw)
+            self.kw_list.addItem(kw)
 
     def _update_swatch(self):
         try:
-            r = int(self._entry_r.get())
-            g = int(self._entry_g.get())
-            b = int(self._entry_b.get())
-            self._swatch.config(bg=f"#{r:02x}{g:02x}{b:02x}")
-        except (ValueError, tk.TclError):
+            r, g, b = int(self._entry_r.text()), int(self._entry_g.text()), int(self._entry_b.text())
+            self._swatch.setStyleSheet(f"background-color:rgb({r},{g},{b}); border:1px solid #888;")
+        except ValueError:
             pass
 
     def _apply_meta(self):
         if self._selected is None:
             return
-        cat = self.categories[self._selected]
         try:
-            r, g, b = int(self._entry_r.get()), int(self._entry_g.get()), int(self._entry_b.get())
+            r, g, b = int(self._entry_r.text()), int(self._entry_g.text()), int(self._entry_b.text())
             if not all(0 <= v <= 255 for v in (r, g, b)):
                 raise ValueError
         except ValueError:
-            messagebox.showerror("Invalid Color", "R, G, B must be integers 0–255.", parent=self.win)
+            QMessageBox.critical(self, "Invalid Color", "R, G, B must be integers 0–255.")
             return
-        cat["name"]  = self._entry_name.get().strip()
-        cat["code"]  = self._entry_code.get().strip()
+        cat = self.categories[self._selected]
+        cat["name"]  = self._entry_name.text().strip()
+        cat["code"]  = self._entry_code.text().strip()
         cat["color"] = [r, g, b]
         self._refresh_cat_list()
-        self.cat_listbox.selection_set(self._selected)
+        self.cat_list.setCurrentRow(self._selected)
 
     def _add_keyword(self):
         if self._selected is None:
             return
-        kw = self._kw_entry.get().strip().lower()
+        kw = self._kw_entry.text().strip().lower()
         if not kw:
             return
-        existing = list(self.kw_listbox.get(0, tk.END))
-        if kw in existing:
-            messagebox.showinfo("Duplicate", f'"{kw}" is already in this category.', parent=self.win)
+        if kw in self._keywords():
+            QMessageBox.information(self, "Duplicate", f'"{kw}" is already in this category.')
             return
-        self.kw_listbox.insert(tk.END, kw)
-        self.categories[self._selected]["keywords"] = list(self.kw_listbox.get(0, tk.END))
-        self._kw_entry.delete(0, tk.END)
+        self.kw_list.addItem(kw)
+        self.categories[self._selected]["keywords"] = self._keywords()
+        self._kw_entry.clear()
 
     def _remove_keywords(self):
         if self._selected is None:
             return
-        for i in reversed(self.kw_listbox.curselection()):
-            self.kw_listbox.delete(i)
-        self.categories[self._selected]["keywords"] = list(self.kw_listbox.get(0, tk.END))
+        for item in self.kw_list.selectedItems():
+            self.kw_list.takeItem(self.kw_list.row(item))
+        self.categories[self._selected]["keywords"] = self._keywords()
 
     def _add_category(self):
         new_cat = {"code": "00000", "name": "New Category",
@@ -782,115 +822,127 @@ class CategoryEditor:
         self.categories.append(new_cat)
         self._refresh_cat_list()
         idx = len(self.categories) - 1
-        self.cat_listbox.selection_clear(0, tk.END)
-        self.cat_listbox.selection_set(idx)
-        self.cat_listbox.see(idx)
-        self._on_cat_select()
+        self.cat_list.setCurrentRow(idx)
 
     def _delete_category(self):
         if self._selected is None:
             return
         cat = self.categories[self._selected]
-        if not messagebox.askyesno(
-            "Delete Category",
+        reply = QMessageBox.question(
+            self, "Delete Category",
             f'Delete category "{cat["name"]}" ({cat["code"]})?\nThis cannot be undone.',
-            parent=self.win
-        ):
+            QMessageBox.Yes | QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
             return
         self.categories.pop(self._selected)
         self._selected = None
         self._refresh_cat_list()
-        self.kw_listbox.delete(0, tk.END)
-        for entry in (self._entry_name, self._entry_code,
-                      self._entry_r, self._entry_g, self._entry_b):
-            entry.delete(0, tk.END)
+        self.kw_list.clear()
+        for e in (self._entry_name, self._entry_code, self._entry_r, self._entry_g, self._entry_b):
+            e.clear()
         if self.categories:
-            self.cat_listbox.selection_set(0)
-            self._on_cat_select()
+            self.cat_list.setCurrentRow(0)
 
     def _save(self):
-        # Sync any in-progress keyword list back before saving
         if self._selected is not None:
-            self.categories[self._selected]["keywords"] = list(
-                self.kw_listbox.get(0, tk.END)
-            )
+            self.categories[self._selected]["keywords"] = self._keywords()
         self.config_data["categories"] = self.categories
         try:
             with open(CONFIG_FILE, "w") as f:
                 json.dump(self.config_data, f, indent=2)
-            messagebox.showinfo("Saved", "categories.json updated successfully.", parent=self.win)
-            self.win.destroy()
+            QMessageBox.information(self, "Saved", "categories.json updated successfully.")
+            self.accept()
         except Exception as e:
-            messagebox.showerror("Save Error", str(e), parent=self.win)
+            QMessageBox.critical(self, "Save Error", str(e))
 
 
-# ── GUI ───────────────────────────────────────────────────────────────────────
-class App:
-    def __init__(self, root: tk.Tk):
-        self.root = root
-        self.root.title("Coffee Lab Invoice Processor")
-        self.root.geometry("740x520")
-        self.root.resizable(True, True)
+# ── Main Window ───────────────────────────────────────────────────────────────
+class App(QMainWindow):
+
+    PURPLE = "#8C4CAF"
+    RED    = "#AA3333"
+
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Coffee Lab Invoice Processor")
+        self.resize(760, 540)
         self._build()
 
     # ── UI construction ───────────────────────────────────────────────────────
     def _build(self):
-        # Button row
-        btn_row = tk.Frame(self.root, pady=8, padx=10)
-        btn_row.pack(fill=tk.X)
+        central = QWidget()
+        self.setCentralWidget(central)
+        layout = QVBoxLayout(central)
+        layout.setContentsMargins(10, 8, 10, 4)
 
-        def btn(parent, text, cmd, bg):
-            b = tk.Label(parent, text=text, bg=bg, fg="white",
-                         font=("Arial", 10, "bold"), width=18, height=2,
-                         relief=tk.FLAT, cursor="hand2")
-            b.bind("<Button-1>", lambda e: cmd())
-            b.bind("<Enter>",    lambda e: b.config(bg=_darken(bg)))
-            b.bind("<Leave>",    lambda e: b.config(bg=bg))
+        def sbtn(text, color):
+            b = QPushButton(text)
+            b.setStyleSheet(
+                f"QPushButton{{background:{color};color:white;font-weight:bold;"
+                f"border:none;padding:6px 14px;border-radius:3px;font-size:10pt;}}"
+                f"QPushButton:hover{{background:{_darken(color)};}}"
+            )
+            b.setMinimumHeight(36)
             return b
 
-        btn(btn_row, "Select File(s)...",    self.select_files,    "#8C4CAF").pack(side=tk.LEFT, padx=4)
-        btn(btn_row, "Process Inbox",        self.process_inbox,   "#8C4CAF").pack(side=tk.LEFT, padx=4)
-        btn(btn_row, "Edit Keywords",        self.open_config,     "#8C4CAF").pack(side=tk.LEFT, padx=4)
-        btn(btn_row, "Clear Master PDF",     self.clear_master,    "#8C4CAF").pack(side=tk.LEFT, padx=4)
-        btn(btn_row, "DEBUG: Dump Text",     self.debug_dump_text, "#AA3333").pack(side=tk.LEFT, padx=4)
+        # Button row
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(6)
+        b_select = sbtn("Select File(s)...", self.PURPLE)
+        b_inbox  = sbtn("Process Inbox",     self.PURPLE)
+        b_config = sbtn("Edit Categories",   self.PURPLE)
+        b_clear  = sbtn("Clear Master PDF",  self.PURPLE)
+        b_debug  = sbtn("DEBUG: Dump Text",  self.RED)
+        b_select.clicked.connect(self.select_files)
+        b_inbox.clicked.connect(self.process_inbox)
+        b_config.clicked.connect(self.open_config)
+        b_clear.clicked.connect(self.clear_master)
+        b_debug.clicked.connect(self.debug_dump_text)
+        for b in (b_select, b_inbox, b_config, b_clear, b_debug):
+            btn_row.addWidget(b)
+        btn_row.addStretch()
+        layout.addLayout(btn_row)
 
         # Status bar
-        self.status_var = tk.StringVar(value="Ready.")
-        tk.Label(self.root, textvariable=self.status_var,
-                 anchor="w", font=("Arial", 9), fg="#444",
-                 padx=12).pack(fill=tk.X)
+        self.status_label = QLabel("Ready.")
+        self.status_label.setStyleSheet("color:#444; font-size:9pt; padding:2px;")
+        layout.addWidget(self.status_label)
 
         # Log panel
-        frame = tk.LabelFrame(self.root, text=" Log ", padx=4, pady=4, font=("Arial", 9))
-        frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 4))
-        self.log_box = scrolledtext.ScrolledText(frame, font=("Courier New", 9),
-                                                  bg="#1e1e1e", fg="#d4d4d4",
-                                                  insertbackground="white")
-        self.log_box.pack(fill=tk.BOTH, expand=True)
+        log_group = QGroupBox(" Log ")
+        log_group.setStyleSheet("QGroupBox{font-size:9pt;}")
+        log_inner = QVBoxLayout(log_group)
+        log_inner.setContentsMargins(4, 4, 4, 4)
+        self.log_box = QTextEdit()
+        self.log_box.setReadOnly(True)
+        self.log_box.setFont(QFont("Courier New", 9))
+        self.log_box.setStyleSheet("background:#1e1e1e; color:#d4d4d4;")
+        log_inner.addWidget(self.log_box)
+        layout.addWidget(log_group)
 
         # Footer paths
-        footer = (f"Inbox: {INBOX_DIR}    |    "
-                  f"Processed: {PROCESSED_DIR}    |    "
-                  f"Master: {MASTER_PDF}")
-        tk.Label(self.root, text=footer, anchor="w",
-                 font=("Courier New", 7), fg="#999",
-                 padx=10).pack(fill=tk.X, pady=(0, 4))
+        footer = QLabel(
+            f"Inbox: {INBOX_DIR}    |    Processed: {PROCESSED_DIR}    |    Master: {MASTER_PDF}"
+        )
+        footer.setStyleSheet("color:#999; font-size:7pt; font-family:'Courier New';")
+        layout.addWidget(footer)
 
     # ── Logging helpers ───────────────────────────────────────────────────────
     def log(self, msg: str):
-        self.log_box.insert(tk.END, msg + "\n")
-        self.log_box.see(tk.END)
-        self.root.update_idletasks()
+        self.log_box.append(msg)
+        self.log_box.moveCursor(QTextCursor.End)
+        QApplication.processEvents()
 
     def status(self, msg: str):
-        self.status_var.set(msg)
-        self.root.update_idletasks()
+        self.status_label.setText(msg)
+        QApplication.processEvents()
 
     # ── Actions ───────────────────────────────────────────────────────────────
     def select_files(self):
-        paths = filedialog.askopenfilenames(
-            title="Select Invoice PDF(s)",
-            filetypes=[("PDF Files", "*.pdf"), ("All Files", "*.*")]
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Select Invoice PDF(s)", "",
+            "PDF Files (*.pdf);;All Files (*.*)"
         )
         if paths:
             self._run_batch([Path(p) for p in paths])
@@ -898,9 +950,11 @@ class App:
     def process_inbox(self):
         pdfs = sorted(INBOX_DIR.glob("*.pdf"))
         if not pdfs:
-            messagebox.showinfo("Inbox Empty",
-                                f"No PDF files found in:\n{INBOX_DIR}\n\n"
-                                "Drop invoice PDFs into the inbox folder and try again.")
+            QMessageBox.information(
+                self, "Inbox Empty",
+                f"No PDF files found in:\n{INBOX_DIR}\n\n"
+                "Drop invoice PDFs into the inbox folder and try again."
+            )
             return
         self._run_batch(pdfs, move_after=True)
 
@@ -920,9 +974,8 @@ class App:
                 success += 1
                 if move_after:
                     dest = PROCESSED_DIR / path.name
-                    # Avoid name collision
                     if dest.exists():
-                        ts  = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
                         dest = PROCESSED_DIR / f"{path.stem}_orig_{ts}.pdf"
                     shutil.move(str(path), str(dest))
 
@@ -932,28 +985,27 @@ class App:
         self.status(result)
 
     def open_config(self):
-        if sys.platform == "win32":
-            subprocess.Popen(["notepad", str(CONFIG_FILE)])
-        elif sys.platform == "darwin":
-            subprocess.Popen(["open", "-t", str(CONFIG_FILE)])
-        else:
-            subprocess.Popen(["xdg-open", str(CONFIG_FILE)])
-        self.log("Opened categories.json in default text editor — save and re-run to apply changes.")
+        editor = CategoryEditor(self)
+        editor.exec()
 
     def clear_master(self):
         if not MASTER_PDF.exists():
-            messagebox.showinfo("Nothing to clear", "Master PDF does not exist yet.")
+            QMessageBox.information(self, "Nothing to clear", "Master PDF does not exist yet.")
             return
-        if messagebox.askyesno("Confirm",
-                               f"Delete master PDF?\n{MASTER_PDF}\n\nThis cannot be undone."):
+        reply = QMessageBox.question(
+            self, "Confirm",
+            f"Delete master PDF?\n{MASTER_PDF}\n\nThis cannot be undone.",
+            QMessageBox.Yes | QMessageBox.No,
+        )
+        if reply == QMessageBox.Yes:
             MASTER_PDF.unlink()
             self.log("Master PDF deleted.")
             self.status("Master PDF cleared.")
 
     def debug_dump_text(self):
-        paths = filedialog.askopenfilenames(
-            title="Select PDF to dump text",
-            filetypes=[("PDF Files", "*.pdf"), ("All Files", "*.*")]
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Select PDF to dump text", "",
+            "PDF Files (*.pdf);;All Files (*.*)"
         )
         if not paths:
             return
@@ -975,16 +1027,17 @@ class App:
 # ── Entry point ───────────────────────────────────────────────────────────────
 def main():
     ensure_dirs()
-    root = tk.Tk()
+    app = QApplication(sys.argv)
+    app.setStyle("Fusion")
+    window = App()
     try:
-        # Set a window icon if one exists next to the script
-        icon = BASE_DIR / "icon.ico"
-        if icon.exists():
-            root.iconbitmap(str(icon))
+        icon_path = BASE_DIR / "icon.ico"
+        if icon_path.exists():
+            window.setWindowIcon(QIcon(str(icon_path)))
     except Exception:
         pass
-    App(root)
-    root.mainloop()
+    window.show()
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":
