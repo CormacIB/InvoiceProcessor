@@ -1,6 +1,8 @@
 # Coffee Lab Invoice Processor
 
-A desktop tool for processing PDF invoices — it scans each invoice, assigns cost category tags based on keyword rules, overlays colored labels directly onto the PDF pages, and appends the tagged pages to a running master PDF.
+A tool for processing PDF invoices — it scans each invoice, assigns cost category tags based on keyword rules, overlays colored labels directly onto the PDF pages, and appends the tagged pages to a running master PDF.
+
+> **🌐 Web version:** the project is moving to a zero-install web app in [`web/`](web/) — everything runs in the browser (no uploads, no server, no login) and it deploys to Vercel as a static site. See [web/README.md](web/README.md) for usage, the category-config workflow, and deploy steps. The Python desktop app below remains the reference implementation that the web pipeline is golden-tested against.
 
 IMPORTANT NOTE: These categories have been made specifically for a coffee shop- if you are using this for a different resteraunt, follow the template but you will need to essentially input your own inventory, or have an LLM do it for you if you are comfortable with that.
 

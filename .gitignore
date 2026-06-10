@@ -214,3 +214,9 @@ master/
 # OS
 Thumbs.db
 .DS_Store
+
+# Web app (web/)
+node_modules/
+# the Python template's lib/ and dist/ patterns above would swallow web source
+!web/src/lib/
+!web/src/lib/**

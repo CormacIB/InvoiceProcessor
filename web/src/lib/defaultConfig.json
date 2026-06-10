@@ -165,10 +165,5 @@
         "KEYSTON RINSE AID LOW TEMP LIQ DISP"
       ]
     }
-  ],
-  "notes": {
-    "editing": "Add keywords (lowercase) to any category. First matching category wins per line item. Sysco invoices use their printed codes directly \u00e2\u20ac\u201d keywords only apply to other vendors.",
-    "colors": "RGB values 0-255. cyan=[0,191,255], yellow=[255,200,0], purple=[153,51,255], green=[100,200,100]",
-    "adding_category": "Copy a category block, change code/name/color/keywords, save, and re-run."
-  }
+  ]
 }

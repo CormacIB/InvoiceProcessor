@@ -1,6 +1,6 @@
 #!/bin/bash
 cd "$(dirname "$0")"
-python3 invoice_processor.py
+"$(dirname "$0")/venv/bin/python3" invoice_processor.py
 if [ $? -ne 0 ]; then
     echo ""
     echo "ERROR: Could not start the Invoice Processor."
