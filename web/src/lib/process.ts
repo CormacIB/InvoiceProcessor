@@ -19,6 +19,10 @@ export interface ProcessResult {
   vendor?: Vendor;
   taggedBytes?: Uint8Array;
   taggedName?: string;
+  /** Per-page category totals, for display. */
+  pages?: CategoryTotals[];
+  /** Whole-file category totals (all invoice groups aggregated). */
+  totals?: CategoryTotals;
   log: string[];
 }
 
@@ -92,7 +96,23 @@ export async function processInvoice(
     const taggedName = `${stem}_tagged_${timestamp()}.pdf`;
     log.push(`  Tagged: ${taggedName}`);
 
-    return { name, ok: true, vendor, taggedBytes, taggedName, log };
+    const totals: CategoryTotals = {};
+    for (const cats of catsPerPage) {
+      for (const [label, amount] of Object.entries(cats)) {
+        totals[label] = round2((totals[label] ?? 0) + amount);
+      }
+    }
+
+    return {
+      name,
+      ok: true,
+      vendor,
+      taggedBytes,
+      taggedName,
+      pages: catsPerPage,
+      totals,
+      log,
+    };
   } catch (e) {
     log.push(`  ERROR: ${e instanceof Error ? e.message : String(e)}`);
     return { name, ok: false, log };

@@ -1,18 +1,10 @@
-import { useRef, useState } from "react";
-import type { Category, Config } from "./lib/types";
-import { exportConfig, importConfig, resetConfig, saveConfig } from "./lib/config";
+// Category editor modal — mirrors web/src/CategoryEditor.tsx structure
+const { useRef, useState } = React;
 
-interface Props {
-  config: Config;
-  onSave: (config: Config) => void;
-  onClose: () => void;
+function rgbToHex(rgb) {
+  return "#" + rgb.map((v) => v.toString(16).padStart(2, "0")).join("");
 }
-
-function rgbToHex([r, g, b]: [number, number, number]): string {
-  return "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("");
-}
-
-function hexToRgb(hex: string): [number, number, number] {
+function hexToRgb(hex) {
   const h = hex.replace("#", "");
   return [
     parseInt(h.slice(0, 2), 16),
@@ -21,28 +13,24 @@ function hexToRgb(hex: string): [number, number, number] {
   ];
 }
 
-export default function CategoryEditor({ config, onSave, onClose }: Props) {
-  const [cats, setCats] = useState<Category[]>(() =>
-    structuredClone(config.categories),
-  );
+function CategoryEditor({ config, onSave, onClose }) {
+  const [cats, setCats] = useState(() => JSON.parse(JSON.stringify(config.categories)));
   const [selected, setSelected] = useState(0);
   const [newKeyword, setNewKeyword] = useState("");
   const [error, setError] = useState("");
-  const importInput = useRef<HTMLInputElement>(null);
+  const importInput = useRef(null);
 
-  const cat = cats[selected] as Category | undefined;
+  const cat = cats[selected];
 
-  function update(patch: Partial<Category>) {
-    setCats((prev) =>
-      prev.map((c, i) => (i === selected ? { ...c, ...patch } : c)),
-    );
+  function update(patch) {
+    setCats((prev) => prev.map((c, i) => (i === selected ? { ...c, ...patch } : c)));
   }
 
   function addKeyword() {
     const kw = newKeyword.trim().toLowerCase();
     if (!kw || !cat) return;
     if (cat.keywords.includes(kw)) {
-      setError(`"${kw}" is already in this category.`);
+      setError('"' + kw + '" is already in this category.');
       return;
     }
     update({ keywords: [...cat.keywords, kw] });
@@ -57,15 +45,11 @@ export default function CategoryEditor({ config, onSave, onClose }: Props) {
         return;
       }
     }
-    const next: Config = { categories: cats };
-    saveConfig(next);
-    onSave(next);
+    onSave({ categories: cats });
   }
 
   function doExport() {
-    const blob = new Blob([exportConfig({ categories: cats })], {
-      type: "application/json",
-    });
+    const blob = new Blob([JSON.stringify({ categories: cats }, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = "categories.json";
@@ -73,9 +57,10 @@ export default function CategoryEditor({ config, onSave, onClose }: Props) {
     URL.revokeObjectURL(a.href);
   }
 
-  async function doImport(file: File) {
+  async function doImport(file) {
     try {
-      const next = importConfig(await file.text());
+      const next = JSON.parse(await file.text());
+      if (!next || !Array.isArray(next.categories)) throw new Error("Invalid config file.");
       setCats(next.categories);
       setSelected(0);
       setError("");
@@ -86,41 +71,32 @@ export default function CategoryEditor({ config, onSave, onClose }: Props) {
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal" onClick={(e) => e.stopPropagation()} data-screen-label="Edit Categories modal">
         <header className="modal-head">
           <h2>Edit Categories</h2>
           <div className="modal-tools">
-            <button className="btn small ghost" onClick={doExport}>
-              Export JSON
-            </button>
-            <button
-              className="btn small ghost"
-              onClick={() => importInput.current?.click()}
-            >
-              Import JSON
-            </button>
+            <button className="btn small ghost" onClick={doExport}>Export JSON</button>
+            <button className="btn small ghost" onClick={() => importInput.current && importInput.current.click()}>Import JSON</button>
             <input
               ref={importInput}
               type="file"
               accept=".json"
               hidden
               onChange={(e) => {
-                const f = e.target.files?.[0];
+                const f = e.target.files && e.target.files[0];
                 if (f) doImport(f);
                 e.target.value = "";
               }}
-            />
+            ></input>
             <button
               className="btn small ghost"
               onClick={() => {
                 if (confirm("Reset all categories to the built-in defaults?")) {
-                  setCats(resetConfig().categories);
+                  setCats(JSON.parse(JSON.stringify(window.DEFAULT_CONFIG.categories)));
                   setSelected(0);
                 }
               }}
-            >
-              Reset to Defaults
-            </button>
+            >Reset to Defaults</button>
           </div>
         </header>
 
@@ -128,15 +104,8 @@ export default function CategoryEditor({ config, onSave, onClose }: Props) {
           <aside>
             <ul className="cat-list">
               {cats.map((c, i) => (
-                <li
-                  key={i}
-                  className={i === selected ? "active" : ""}
-                  onClick={() => setSelected(i)}
-                >
-                  <span
-                    className="swatch"
-                    style={{ background: rgbToHex(c.color) }}
-                  />
+                <li key={i} className={i === selected ? "active" : ""} onClick={() => setSelected(i)}>
+                  <span className="swatch" style={{ background: rgbToHex(c.color) }}></span>
                   <span className="cat-code">{c.code}</span>
                   <span>{c.name}</span>
                 </li>
@@ -148,31 +117,21 @@ export default function CategoryEditor({ config, onSave, onClose }: Props) {
                 onClick={() => {
                   setCats((prev) => [
                     ...prev,
-                    {
-                      code: "00000",
-                      name: "New Category",
-                      color: [180, 180, 180],
-                      keywords: [],
-                    },
+                    { code: "00000", name: "New Category", color: [180, 180, 180], keywords: [] },
                   ]);
                   setSelected(cats.length);
                 }}
-              >
-                + Add
-              </button>
+              >+ Add</button>
               <button
                 className="btn small danger"
                 disabled={!cat}
                 onClick={() => {
                   if (!cat) return;
-                  if (!confirm(`Delete category "${cat.name}" (${cat.code})?`))
-                    return;
+                  if (!confirm('Delete category "' + cat.name + '" (' + cat.code + ')?')) return;
                   setCats((prev) => prev.filter((_, i) => i !== selected));
                   setSelected(0);
                 }}
-              >
-                − Delete
-              </button>
+              >&minus; Delete</button>
             </div>
           </aside>
 
@@ -181,31 +140,20 @@ export default function CategoryEditor({ config, onSave, onClose }: Props) {
               <div className="row meta">
                 <label>
                   Name
-                  <input
-                    value={cat.name}
-                    onChange={(e) => update({ name: e.target.value })}
-                  />
+                  <input value={cat.name} onChange={(e) => update({ name: e.target.value })}></input>
                 </label>
                 <label>
                   Code
-                  <input
-                    value={cat.code}
-                    onChange={(e) => update({ code: e.target.value })}
-                  />
+                  <input value={cat.code} onChange={(e) => update({ code: e.target.value })}></input>
                 </label>
                 <label>
                   Color
-                  <input
-                    type="color"
-                    value={rgbToHex(cat.color)}
-                    onChange={(e) => update({ color: hexToRgb(e.target.value) })}
-                  />
+                  <input type="color" value={rgbToHex(cat.color)} onChange={(e) => update({ color: hexToRgb(e.target.value) })}></input>
                 </label>
               </div>
 
               <p className="hint">
-                Keywords (case-insensitive, matched against line item
-                descriptions — first matching category wins):
+                Keywords (case-insensitive, matched against line item descriptions — first matching category wins):
               </p>
               <ul className="kw-list">
                 {cat.keywords.map((kw) => (
@@ -213,14 +161,8 @@ export default function CategoryEditor({ config, onSave, onClose }: Props) {
                     <span>{kw}</span>
                     <button
                       className="remove"
-                      onClick={() =>
-                        update({
-                          keywords: cat.keywords.filter((k) => k !== kw),
-                        })
-                      }
-                    >
-                      ✕
-                    </button>
+                      onClick={() => update({ keywords: cat.keywords.filter((k) => k !== kw) })}
+                    >✕</button>
                   </li>
                 ))}
               </ul>
@@ -231,10 +173,8 @@ export default function CategoryEditor({ config, onSave, onClose }: Props) {
                   value={newKeyword}
                   onChange={(e) => setNewKeyword(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && addKeyword()}
-                />
-                <button className="btn small outline-accent" onClick={addKeyword}>
-                  + Add Keyword
-                </button>
+                ></input>
+                <button className="btn small outline-accent" onClick={addKeyword}>+ Add Keyword</button>
               </div>
             </main>
           ) : (
@@ -247,14 +187,12 @@ export default function CategoryEditor({ config, onSave, onClose }: Props) {
         {error && <p className="error">{error}</p>}
 
         <footer className="modal-foot">
-          <button className="btn ghost" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="btn primary" onClick={save}>
-            Save Changes
-          </button>
+          <button className="btn ghost" onClick={onClose}>Cancel</button>
+          <button className="btn primary" onClick={save}>Save Changes</button>
         </footer>
       </div>
     </div>
   );
 }
+
+Object.assign(window, { CategoryEditor });
