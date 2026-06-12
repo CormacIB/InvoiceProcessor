@@ -1,6 +1,6 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CategoryTotals, Config } from "./lib/types";
-import { loadConfig } from "./lib/config";
+import { defaultConfig, loadStore, saveStore, type ProfileStore } from "./lib/config";
 import { processInvoice, type ProcessResult } from "./lib/process";
 import { appendToMaster } from "./lib/overlay";
 import CategoryEditor from "./CategoryEditor";
@@ -113,7 +113,7 @@ function InvoiceCard({ result, config }: { result: CardResult; config: Config })
 }
 
 export default function App() {
-  const [config, setConfig] = useState<Config>(() => loadConfig());
+  const [store, setStore] = useState<ProfileStore>(() => loadStore());
   const [editorOpen, setEditorOpen] = useState(false);
   const [invoiceFiles, setInvoiceFiles] = useState<File[]>([]);
   const [masterFile, setMasterFile] = useState<File | null>(null);
@@ -126,6 +126,69 @@ export default function App() {
 
   const invoiceInput = useRef<HTMLInputElement>(null);
   const masterInput = useRef<HTMLInputElement>(null);
+
+  const config = store.profiles[store.active];
+  const profileNames = Object.keys(store.profiles);
+
+  useEffect(() => {
+    saveStore(store);
+  }, [store]);
+
+  function setConfig(next: Config) {
+    setStore((s) => ({
+      ...s,
+      profiles: { ...s.profiles, [s.active]: next },
+    }));
+  }
+
+  function newProfile() {
+    const name = prompt("Name for the new profile (e.g. shop name):")?.trim();
+    if (!name) return;
+    if (store.profiles[name]) {
+      alert(`A profile named "${name}" already exists.`);
+      return;
+    }
+    const copyCurrent = confirm(
+      `Start "${name}" with a copy of the current categories?\n` +
+        "OK = copy current profile, Cancel = start from the built-in defaults.",
+    );
+    setStore((s) => ({
+      active: name,
+      profiles: {
+        ...s.profiles,
+        [name]: copyCurrent
+          ? structuredClone(s.profiles[s.active])
+          : defaultConfig(),
+      },
+    }));
+  }
+
+  function renameProfile() {
+    const name = prompt("Rename this profile:", store.active)?.trim();
+    if (!name || name === store.active) return;
+    if (store.profiles[name]) {
+      alert(`A profile named "${name}" already exists.`);
+      return;
+    }
+    setStore((s) => {
+      const profiles = { ...s.profiles, [name]: s.profiles[s.active] };
+      delete profiles[s.active];
+      return { active: name, profiles };
+    });
+  }
+
+  function deleteProfile() {
+    if (profileNames.length === 1) {
+      alert("This is the only profile — there's nothing to switch to.");
+      return;
+    }
+    if (!confirm(`Delete profile "${store.active}" and its categories?`)) return;
+    setStore((s) => {
+      const profiles = { ...s.profiles };
+      delete profiles[s.active];
+      return { active: Object.keys(profiles)[0], profiles };
+    });
+  }
 
   const addInvoices = useCallback((files: FileList | File[]) => {
     const pdfs = Array.from(files).filter((f) =>
@@ -210,9 +273,45 @@ export default function App() {
             browser, no files are uploaded anywhere.
           </p>
         </div>
-        <button className="btn ghost" onClick={() => setEditorOpen(true)}>
-          Edit Categories
-        </button>
+        <div className="masthead-tools">
+          <div className="profile-row">
+            <label className="profile-label" htmlFor="profile-select">
+              Profile
+            </label>
+            <select
+              id="profile-select"
+              className="profile-select"
+              value={store.active}
+              onChange={(e) =>
+                setStore((s) => ({ ...s, active: e.target.value }))
+              }
+            >
+              {profileNames.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="profile-actions">
+            <button className="btn small ghost" onClick={newProfile}>
+              + New
+            </button>
+            <button className="btn small ghost" onClick={renameProfile}>
+              Rename
+            </button>
+            <button
+              className="btn small ghost"
+              disabled={profileNames.length === 1}
+              onClick={deleteProfile}
+            >
+              Delete
+            </button>
+          </div>
+          <button className="btn ghost" onClick={() => setEditorOpen(true)}>
+            Edit Categories
+          </button>
+        </div>
       </header>
 
       <section

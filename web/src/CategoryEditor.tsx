@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { Category, Config } from "./lib/types";
-import { exportConfig, importConfig, resetConfig, saveConfig } from "./lib/config";
+import { defaultConfig, exportConfig, importConfig } from "./lib/config";
 
 interface Props {
   config: Config;
@@ -57,9 +57,7 @@ export default function CategoryEditor({ config, onSave, onClose }: Props) {
         return;
       }
     }
-    const next: Config = { categories: cats };
-    saveConfig(next);
-    onSave(next);
+    onSave({ categories: cats });
   }
 
   function doExport() {
@@ -114,7 +112,7 @@ export default function CategoryEditor({ config, onSave, onClose }: Props) {
               className="btn small ghost"
               onClick={() => {
                 if (confirm("Reset all categories to the built-in defaults?")) {
-                  setCats(resetConfig().categories);
+                  setCats(defaultConfig().categories);
                   setSelected(0);
                 }
               }}

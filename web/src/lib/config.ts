@@ -1,32 +1,61 @@
 import type { Config } from "./types";
 import defaultConfigJson from "./defaultConfig.json";
 
-const STORAGE_KEY = "invoice-processor-config-v1";
+const PROFILES_KEY = "invoice-processor-profiles-v1";
+const LEGACY_CONFIG_KEY = "invoice-processor-config-v1";
+
+export interface ProfileStore {
+  active: string;
+  profiles: Record<string, Config>;
+}
 
 export function defaultConfig(): Config {
   return structuredClone(defaultConfigJson as Config);
 }
 
-export function loadConfig(): Config {
+export function defaultStore(): ProfileStore {
+  return { active: "Default", profiles: { Default: defaultConfig() } };
+}
+
+export function loadStore(): ProfileStore {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(PROFILES_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (validateConfig(parsed)) return parsed;
+      if (validateStore(parsed)) return parsed;
+    }
+    // One-time migration from the pre-profiles single-config key
+    const legacy = localStorage.getItem(LEGACY_CONFIG_KEY);
+    if (legacy) {
+      const parsed = JSON.parse(legacy);
+      if (validateConfig(parsed)) {
+        const store: ProfileStore = {
+          active: "Default",
+          profiles: { Default: parsed },
+        };
+        saveStore(store);
+        localStorage.removeItem(LEGACY_CONFIG_KEY);
+        return store;
+      }
     }
   } catch {
     // fall through to defaults
   }
-  return defaultConfig();
+  return defaultStore();
 }
 
-export function saveConfig(config: Config): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+export function saveStore(store: ProfileStore): void {
+  localStorage.setItem(PROFILES_KEY, JSON.stringify(store));
 }
 
-export function resetConfig(): Config {
-  localStorage.removeItem(STORAGE_KEY);
-  return defaultConfig();
+export function validateStore(data: unknown): data is ProfileStore {
+  if (typeof data !== "object" || data === null) return false;
+  const { active, profiles } = data as ProfileStore;
+  if (typeof active !== "string") return false;
+  if (typeof profiles !== "object" || profiles === null) return false;
+  const entries = Object.values(profiles);
+  if (entries.length === 0 || !(active in profiles)) return false;
+  return entries.every(validateConfig);
 }
 
 export function validateConfig(data: unknown): data is Config {
