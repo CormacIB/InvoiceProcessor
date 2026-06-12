@@ -1,83 +1,76 @@
 # Coffee Lab Invoice Processor
 
-A tool for processing PDF invoices — it scans each invoice, assigns cost category tags based on keyword rules, overlays colored labels directly onto the PDF pages, and appends the tagged pages to a running master PDF.
+A zero-install web app for processing PDF invoices — drop invoices onto the
+page and it detects the vendor, assigns cost category tags based on keyword
+rules, overlays colored labels directly onto the PDF pages, and appends the
+tagged pages to a running master PDF.
 
-> **🌐 Web version:** the project is moving to a zero-install web app in [`web/`](web/) — everything runs in the browser (no uploads, no server, no login) and it deploys to Vercel as a static site. See [web/README.md](web/README.md) for usage, the category-config workflow, and deploy steps. The Python desktop app below remains the reference implementation that the web pipeline is golden-tested against.
+Everything runs **in your browser**: no uploads, no server, no login, no LLM.
+The app lives in [`web/`](web/) and deploys to Vercel as a static site — see
+[web/README.md](web/README.md) for usage, development, and deploy steps.
 
-IMPORTANT NOTE: These categories have been made specifically for a coffee shop- if you are using this for a different resteraunt, follow the template but you will need to essentially input your own inventory, or have an LLM do it for you if you are comfortable with that.
-
-Requires Python to work so pls install on your device if you want to use this. Still working out smooth installation so requires running python -m pip install pypdf pdfplumber reportlab pyinstaller
-
-This is a known bug in the installer- in theory pyinstaller should be able to handle this?
+> The original Python desktop app (`invoice_processor.py`) is no longer the
+> product — it remains in the repo as the **reference implementation** that
+> the web pipeline is golden-tested against. The old tkinter UI, EXE build
+> scripts, and `inbox/`/`processed/` folder workflow are kept only for that
+> purpose.
 
 ---
 
 ## What it does
 
-1. **Reads PDFs** from the `inbox/` folder (or via file picker)
-2. **Detects the vendor** (Sysco, InnnerMountain, Italco, Crested Bucha, Sisu, Vermont Sticky, or generic)
-3. **Categorises line items** by matching descriptions against keyword lists in `config/categories.json`
-4. **Groups multi-page invoices** — consecutive pages belonging to the same invoice are treated as one, with a single combined total tag on the first page of each invoice
-5. **Overlays colored tags** onto each page showing the category code, name, and total amount
-6. **Highlights individual dollar amounts** on the page in the matching category color
-7. **Saves tagged PDFs** to `processed/` with a timestamp in the filename
-8. **Appends each tagged invoice** to `master/master_invoices.pdf` for a consolidated record
+1. **Drop invoice PDFs** onto the page (or click to choose files)
+2. **Detects the vendor** (Sysco, InnerMountain, Italco, Crested Bucha, Sisu,
+   Vermont Sticky, or generic)
+3. **Categorises line items** by matching descriptions against your keyword
+   rules; Sysco order forms use their pre-printed category codes
+4. **Groups multi-page invoices** — consecutive pages belonging to the same
+   invoice get a single combined total tag on the first page
+5. **Overlays colored tags** showing category code, name, and total amount,
+   and **highlights individual dollar amounts** in the matching category color
+6. **Downloads tagged PDFs** with a timestamp in the filename, plus an updated
+   `master_invoices.pdf` — optionally pick your existing master first and the
+   new pages are appended
 
----
+Scanned/photographed invoices (no selectable text) are not supported yet; the
+app shows a clear error for those.
 
-## Folder structure
+## Categories & profiles
+
+Categories are managed in the app via **Edit Categories** — no JSON editing
+required. Each category has a code (e.g. `52000`), a name, a color, and a
+keyword list matched case-insensitively against line item descriptions.
+
+The default categories were built for a coffee shop:
+
+| Code  | Name    | Color  |
+|-------|---------|--------|
+| 52000 | Merch   | Blue   |
+| 50900 | F&B     | Yellow |
+| 53100 | Kitchen | Purple |
+| 61600 | Cafe    | Green  |
+
+If you run a different kind of shop, edit the categories to match your own
+inventory — and use **profiles** to keep separate category setups side by
+side (e.g. one per shop), switchable from the dropdown in the header.
+Everything is saved in your browser's localStorage and persists between
+visits; **Export JSON** / **Import JSON** lets you back a setup up or move it
+to another machine.
+
+## Repo layout
 
 ```
-CoffeeLabInvoiceProcessor/
-├── inbox/                  # Drop invoice PDFs here before processing
-├── processed/              # Tagged output PDFs land here
-├── master/
-│   └── master_invoices.pdf # All tagged invoices appended in order
-├── config/
-│   └── categories.json     # Keyword rules and category colors (auto-created on first run)
-├── invoice_processor.py    # Main application
-├── build_exe.bat           # Build script to produce a standalone Windows EXE
-└── Start Invoice Processor.bat
+InvoiceProcessor/
+├── web/                    # The product: client-side web app (Vite + React)
+│   ├── src/lib/            # TypeScript port of the processing pipeline
+│   ├── tests/              # Golden tests against the Python reference
+│   └── docs/               # Decision docs (e.g. access control options)
+├── invoice_processor.py    # Python reference implementation (golden-test source)
+├── tools/                  # generate_golden.py — regenerates golden test data
+├── webredesign/            # Static design mock used for the UI redesign
+├── config/, inbox/, processed/, master/   # Desktop-era folders, kept for the reference app
+└── Start Invoice Processor.bat / .sh, build_exe.bat, build_app.sh   # Legacy launchers
 ```
-
----
-
-## Categories
-
-Defined in `config/categories.json`. Each category has:
-- A **code** (e.g. `52000`)
-- A **name** (e.g. `Merch`)
-- A **color** (RGB, used for tags and highlights)
-- A list of **keywords** matched case-insensitively against line item descriptions
-
-Default categories:
-
-| Code  | Name    | Color       |
-|-------|---------|-------------|
-| 52000 | Merch   | Blue        |
-| 50900 | F&B     | Yellow      |
-| 53100 | Kitchen | Purple      |
-| 61600 | Cafe    | Green       |
-
-Edit `config/categories.json` directly (the **Edit Keywords** button opens it in Notepad) and re-run to apply changes. The file is created with defaults on first launch if it doesn't exist.
-
----
-
-## Running the app
-
-**From source** (requires Python + dependencies):
-```
-pip install pypdf pdfplumber reportlab
-python invoice_processor.py
-```
-
-**As a standalone EXE** (no Python needed on the target machine):
-```
-build_exe.bat        # run once to build dist\CoffeeLabInvoiceProcessor.exe
-```
-Then distribute or run `dist\CoffeeLabInvoiceProcessor.exe` directly. All folders (`inbox/`, `processed/`, `master/`, `config/`) are created next to the exe on first launch.
-
----
 
 ## Supported vendors
 
@@ -91,3 +84,13 @@ Then distribute or run `dist\CoffeeLabInvoiceProcessor.exe` directly. All folder
 | Vermont Sticky   | `VERMONT STICKY`    | Keyword line-item matching                     |
 | Gunnison County  | `GUNNISON COUNTY`   | Skipped — license/permit invoices, no tagging  |
 | Generic          | *(fallback)*        | Keyword line-item matching                     |
+
+## Running the Python reference (development only)
+
+Only needed when changing pipeline logic — the web pipeline must stay in sync
+with it, verified by the golden tests (see [web/README.md](web/README.md)):
+
+```
+pip install pypdf pdfplumber reportlab
+python invoice_processor.py
+```

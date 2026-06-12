@@ -21,14 +21,22 @@ TypeScript port of it, verified by golden tests against real invoices.
 Scanned/photographed invoices (no selectable text) are not supported yet;
 the app shows a clear error for those.
 
-## Categories
+## Categories & profiles
 
 Click **Edit Categories** to manage categories, keywords, and colors. The
-config is stored in your browser (localStorage), so each machine/shop keeps
-its own independent setup — there are no accounts. Use **Export JSON** /
-**Import JSON** to back up a config or copy it to another machine. The
-built-in defaults come from [src/lib/defaultConfig.json](src/lib/defaultConfig.json)
-(a snapshot of the desktop app's `config/categories.json`).
+header has a **Profile** dropdown for keeping several independent category
+setups side by side (e.g. different shops using the app for different
+purposes) — **+ New** creates a profile (copying the current categories or
+starting from the defaults), and profiles can be renamed and deleted.
+
+Everything is stored in your browser (localStorage) and persists between
+visits, so each machine keeps its own profiles — there are no accounts.
+A config saved by the pre-profiles version of the app is migrated into a
+"Default" profile automatically on first load. Use **Export JSON** /
+**Import JSON** to back up a profile's categories or copy them to another
+machine. The built-in defaults come from
+[src/lib/defaultConfig.json](src/lib/defaultConfig.json) (a snapshot of the
+desktop app's `config/categories.json`).
 
 ## Development
 
@@ -58,3 +66,7 @@ venv/bin/python3 tools/generate_golden.py processed/Invoice.pdf processed/Invoic
 3. Set **Root Directory** to `web` — Vercel auto-detects Vite
 4. Deploy. The free (Hobby) tier is sufficient indefinitely: this is a fully
    static site with no serverless functions and no storage.
+
+The deployed URL is open to anyone who has it; options for restricting access
+(not yet implemented) are written up in
+[docs/access-control-options.md](docs/access-control-options.md).
